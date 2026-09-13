@@ -1,0 +1,9 @@
+# SecurityCameraSystem configuration
+# Lines starting with # are comments.
+
+camera_device_index = 1
+camera_retry_interval_seconds = 2.0
+motion_min_contour_area = 500.0
+snapshot_cooldown_seconds = 2.0
+recording_grace_seconds = 3.0
+recording_fps = 20.0

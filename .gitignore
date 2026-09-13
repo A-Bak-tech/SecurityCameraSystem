@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+out/
+*.obj
+*.exe
+*.pdb
+*.ilk
+
+# Visual Studio
+.vs/
+
+# Generated data (personal footage, logs, database)
+snapshots/
+recordings/
+*.log
+*.db
+
+# Python
+ai/__pycache__/
+ai/*.pyc
+*.egg-info/
+
+# YOLOv5 downloaded weights (large binary, re-downloaded on first run)
+ai/*.pt
