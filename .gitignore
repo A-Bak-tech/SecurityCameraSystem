@@ -20,5 +20,11 @@ ai/__pycache__/
 ai/*.pyc
 *.egg-info/
 
+# PC Guard personal/test data
+ai/pc_guard/authorized_face.npy
+ai/pc_guard/output*.txt
+ai/pc_guard/live_test_frame.jpg
+ai/pc_guard/__pycache__/
+
 # YOLOv5 downloaded weights (large binary, re-downloaded on first run)
 ai/*.pt

@@ -5,3 +5,6 @@ ultralytics
 pandas
 scipy
 seaborn
+opencv-python
+numpy
+pynput
