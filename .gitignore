@@ -26,5 +26,13 @@ ai/pc_guard/output*.txt
 ai/pc_guard/live_test_frame.jpg
 ai/pc_guard/__pycache__/
 
+# PC Guard debug/test scratch files
+ai/pc_guard/*.txt
+ai/pc_guard/test_*.py
+ai/pc_guard/make_icon.py
+
+# PC Guard personal data (biometric embeddings) — never committed
+ai/pc_guard/enrolled_faces/
+
 # YOLOv5 downloaded weights (large binary, re-downloaded on first run)
 ai/*.pt
