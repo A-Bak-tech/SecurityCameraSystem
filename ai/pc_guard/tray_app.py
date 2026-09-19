@@ -11,13 +11,19 @@ from pathlib import Path
 from PIL import Image
 import pystray
 
-from app_paths import SNAPSHOTS_DIR, APP_DATA_DIR, init_database, write_status
+from app_paths import SNAPSHOTS_DIR, APP_DATA_DIR, init_database, write_status, has_any_enrolled_faces
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-MONITOR_SCRIPT = SCRIPT_DIR / "monitor.py"
-ENROLL_SCRIPT = SCRIPT_DIR / "enroll_face.py"
-DASHBOARD_SCRIPT = SCRIPT_DIR / "dashboard.py"
-ICON_PATH = SCRIPT_DIR / "pcguard_icon.ico"
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = Path(sys.executable).resolve().parent
+    RESOURCE_DIR = Path(sys._MEIPASS)
+else:
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    RESOURCE_DIR = SCRIPT_DIR
+
+MONITOR_SCRIPT = SCRIPT_DIR / "monitor.exe"
+DASHBOARD_SCRIPT = SCRIPT_DIR / "dashboard.exe"
+SETUP_WIZARD_SCRIPT = SCRIPT_DIR / "setup_wizard.exe"
+ICON_PATH = RESOURCE_DIR / "pcguard_icon.ico"
 
 state = {"process": None}
 
@@ -37,8 +43,19 @@ def is_running() -> bool:
 def start_monitor(icon, item):
     if is_running():
         return
+
+    if not has_any_enrolled_faces():
+        # No one enrolled yet — send them through setup instead of
+        # letting monitor.exe crash looking for a face that doesn't exist.
+        subprocess.Popen(
+            [str(SETUP_WIZARD_SCRIPT)],
+            cwd=str(SCRIPT_DIR),
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return
+
     state["process"] = subprocess.Popen(
-        [sys.executable, str(MONITOR_SCRIPT)],
+        [str(MONITOR_SCRIPT)],
         cwd=str(SCRIPT_DIR),
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
@@ -47,9 +64,16 @@ def start_monitor(icon, item):
 
 
 def stop_monitor(icon, item):
-    if is_running():
-        state["process"].terminate()
-        state["process"] = None
+    # Kill by name, not just the tracked process — an orphaned monitor.exe
+    # from a previous session (crash, rebuild, manual launch) would
+    # otherwise keep running with the camera live, invisible to this
+    # tray instance's own state tracking.
+    subprocess.run(
+        ["taskkill", "/IM", "monitor.exe", "/F"],
+        capture_output=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    state["process"] = None
     icon.icon = make_icon_image("gray")
     write_status(False)
 
@@ -60,7 +84,7 @@ def is_active(item) -> bool:
 
 def enroll_new_face(icon, item):
     subprocess.Popen(
-        [sys.executable, str(SCRIPT_DIR / "setup_wizard.py"), "--add-person"],
+        [str(SETUP_WIZARD_SCRIPT), "--add-person"],
         cwd=str(SCRIPT_DIR),
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
@@ -68,7 +92,7 @@ def enroll_new_face(icon, item):
 
 def open_dashboard(icon, item):
     subprocess.Popen(
-        [sys.executable, str(DASHBOARD_SCRIPT)],
+        [str(DASHBOARD_SCRIPT)],
         cwd=str(SCRIPT_DIR),
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
@@ -90,6 +114,20 @@ def quit_app(icon, item):
 def main():
     init_database()
 
+    subprocess.run(
+        ["taskkill", "/IM", "monitor.exe", "/F"],
+        capture_output=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    write_status(False)
+
+    if not has_any_enrolled_faces():
+        subprocess.Popen(
+            [str(SETUP_WIZARD_SCRIPT)],
+            cwd=str(SCRIPT_DIR),
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+
     menu = pystray.Menu(
         pystray.MenuItem("Running", lambda icon, item: None, checked=is_active, enabled=False),
         pystray.MenuItem("Open Dashboard", open_dashboard),
@@ -106,11 +144,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import traceback
-    try:
-        print("Starting tray_app.py...", flush=True)
-        main()
-        print("main() returned — this should only happen after Quit is clicked.", flush=True)
-    except Exception:
-        print("CRASHED:", flush=True)
-        traceback.print_exc()
+    main()

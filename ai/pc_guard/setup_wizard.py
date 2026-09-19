@@ -10,11 +10,15 @@ import json
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
+from pathlib import Path
 
 from app_paths import APP_DATA_DIR, load_config, save_config, ENROLLED_FACES_DIR
 
-SCRIPT_DIR = __import__("pathlib").Path(__file__).resolve().parent
-WORKER_SCRIPT = SCRIPT_DIR / "capture_worker.py"
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = Path(sys.executable).resolve().parent
+else:
+    SCRIPT_DIR = Path(__file__).resolve().parent
+WORKER_SCRIPT = SCRIPT_DIR / "capture_worker.exe"
 RESULT_PATH = APP_DATA_DIR / "worker_result.json"
 
 
@@ -24,7 +28,7 @@ def run_worker(*args) -> dict:
     if RESULT_PATH.exists():
         RESULT_PATH.unlink()
 
-    subprocess.run([sys.executable, str(WORKER_SCRIPT), *args], cwd=str(SCRIPT_DIR))
+    subprocess.run([str(WORKER_SCRIPT), *args], cwd=str(SCRIPT_DIR))
 
     if not RESULT_PATH.exists():
         return {"success": False, "reason": "worker_produced_no_result"}

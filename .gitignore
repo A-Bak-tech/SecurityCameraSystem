@@ -20,6 +20,11 @@ ai/__pycache__/
 ai/*.pyc
 *.egg-info/
 
+# PyInstaller build artifacts (large binaries, rebuilt from source, never committed)
+ai/pc_guard/build/
+ai/pc_guard/dist/
+ai/pc_guard/*.spec
+
 # PC Guard personal/test data
 ai/pc_guard/authorized_face.npy
 ai/pc_guard/output*.txt

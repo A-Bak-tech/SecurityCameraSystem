@@ -15,7 +15,10 @@ from app_paths import (
     ENROLLED_FACES_DIR, DB_PATH, load_config, save_config, read_status,
 )
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = Path(sys.executable).resolve().parent
+else:
+    SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class Dashboard(tk.Tk):
@@ -91,7 +94,7 @@ class Dashboard(tk.Tk):
 
     def add_person(self):
         subprocess.run(
-            [sys.executable, str(SCRIPT_DIR / "setup_wizard.py"), "--add-person"],
+            [str(SCRIPT_DIR / "setup_wizard.exe"), "--add-person"],
             cwd=str(SCRIPT_DIR),
         )
         self.build_people_tab()
