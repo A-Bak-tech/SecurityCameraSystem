@@ -8,3 +8,5 @@ seaborn
 opencv-python
 numpy
 pynput
+pystray
+Pillow

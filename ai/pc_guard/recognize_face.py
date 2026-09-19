@@ -1,9 +1,9 @@
 """
-Compares a detected face against the enrolled authorized face.
+Compares a detected face against all enrolled authorized faces.
 
 Used by pc_guard's live monitor: for each frame, detect a face, extract
-its embedding, and check whether it matches the enrolled reference
-closely enough to count as "authorized."
+its embedding, and check it against every enrolled person. If it's
+close enough to any of them, it's authorized.
 """
 
 from pathlib import Path
@@ -11,27 +11,34 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-MODEL_DIR = Path(__file__).resolve().parent
-DETECTOR_MODEL = MODEL_DIR / "face_detection_yunet.onnx"
-RECOGNIZER_MODEL = MODEL_DIR / "face_recognition_sface.onnx"
-REFERENCE_PATH = MODEL_DIR / "authorized_face.npy"
+from app_paths import DETECTOR_MODEL, RECOGNIZER_MODEL, ENROLLED_FACES_DIR
 
-# SFace's cosine similarity threshold for "same person." Values above
-# this count as a match; below counts as an unknown/different face.
-# 0.363 is OpenCV's documented default threshold for SFace.
 MATCH_THRESHOLD = 0.363
 
 
 class FaceRecognizer:
     def __init__(self):
-        if not REFERENCE_PATH.exists():
+        self.reference_embeddings = self._load_enrolled_faces()
+        if not self.reference_embeddings:
             raise FileNotFoundError(
-                f"No enrolled face found at {REFERENCE_PATH}. Run enroll_face.py first."
+                f"No enrolled faces found in {ENROLLED_FACES_DIR}. "
+                f"Run enroll_face.py <name> first."
             )
 
-        self.reference_embedding = np.load(REFERENCE_PATH)
-        self.detector = None  # created lazily once frame size is known
+        self.detector = None
         self.recognizer = cv2.FaceRecognizerSF.create(str(RECOGNIZER_MODEL), "")
+
+    def _load_enrolled_faces(self) -> dict:
+        """Returns {name: embedding} for every .npy file in enrolled_faces/."""
+        embeddings = {}
+        if not ENROLLED_FACES_DIR.exists():
+            return embeddings
+
+        for npy_file in ENROLLED_FACES_DIR.glob("*.npy"):
+            name = npy_file.stem
+            embeddings[name] = np.load(npy_file)
+
+        return embeddings
 
     def _ensure_detector(self, frame_width: int, frame_height: int):
         if self.detector is None:
@@ -43,11 +50,15 @@ class FaceRecognizer:
 
     def check_frame(self, frame) -> dict:
         """
-        Detects a face in frame and compares it to the enrolled reference.
+        Detects a face in frame and compares it against every enrolled
+        person's reference embedding.
 
         Returns a dict:
-            {"face_found": bool, "authorized": bool, "similarity": float}
-        similarity is 0.0 if no face was found.
+            {"face_found": bool, "authorized": bool, "similarity": float,
+             "matched_name": str or None}
+        similarity is the best score across all enrolled people (0.0 if
+        no face was found). matched_name is the enrolled person with the
+        best score, or None if unauthorized/no face.
         """
         height, width = frame.shape[:2]
         self._ensure_detector(width, height)
@@ -55,24 +66,34 @@ class FaceRecognizer:
         _, faces = self.detector.detect(frame)
 
         if faces is None or len(faces) == 0:
-            return {"face_found": False, "authorized": False, "similarity": 0.0}
+            return {"face_found": False, "authorized": False, "similarity": 0.0, "matched_name": None}
 
-        # Use the largest detected face if multiple are in frame.
         face = max(faces, key=lambda f: f[2] * f[3])
         aligned_face = self.recognizer.alignCrop(frame, face)
         embedding = self.recognizer.feature(aligned_face)
 
-        similarity = self.recognizer.match(
-            self.reference_embedding, embedding, cv2.FaceRecognizerSF_FR_COSINE
-        )
+        best_name = None
+        best_similarity = 0.0
 
-        authorized = similarity >= MATCH_THRESHOLD
+        for name, reference_embedding in self.reference_embeddings.items():
+            similarity = self.recognizer.match(
+                reference_embedding, embedding, cv2.FaceRecognizerSF_FR_COSINE
+            )
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_name = name
 
-        return {"face_found": True, "authorized": authorized, "similarity": float(similarity)}
+        authorized = best_similarity >= MATCH_THRESHOLD
+
+        return {
+            "face_found": True,
+            "authorized": authorized,
+            "similarity": float(best_similarity),
+            "matched_name": best_name if authorized else None,
+        }
 
 
 if __name__ == "__main__":
-    # Quick manual test: shows live camera feed, prints match status per frame.
     import sys
 
     cap = cv2.VideoCapture(1)
@@ -81,8 +102,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     face_recognizer = FaceRecognizer()
-
+    print(f"Enrolled: {list(face_recognizer.reference_embeddings.keys())}")
     print("Press 'q' to quit.")
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -91,7 +113,7 @@ if __name__ == "__main__":
         result = face_recognizer.check_frame(frame)
 
         if result["face_found"]:
-            label = "AUTHORIZED" if result["authorized"] else "UNKNOWN"
+            label = result["matched_name"] if result["authorized"] else "UNKNOWN"
             color = (0, 255, 0) if result["authorized"] else (0, 0, 255)
             text = f"{label} ({result['similarity']:.3f})"
             cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
