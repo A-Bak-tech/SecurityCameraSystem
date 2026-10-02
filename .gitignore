@@ -41,3 +41,9 @@ ai/pc_guard/enrolled_faces/
 
 # YOLOv5 downloaded weights (large binary, re-downloaded on first run)
 ai/*.pt
+# PC Guard build output
+*.msix
+*.zip
+ai/pc_guard/msix_staging/
+ai/pc_guard/dist/
+*.pfx
