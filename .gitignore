@@ -47,3 +47,10 @@ ai/*.pt
 ai/pc_guard/msix_staging/
 ai/pc_guard/dist/
 *.pfx
+
+# PC Guard build output
+*.msix
+*.zip
+ai/pc_guard/msix_staging/
+ai/pc_guard/dist/
+*.pfx
